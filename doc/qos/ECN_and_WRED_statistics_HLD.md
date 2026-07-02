@@ -17,7 +17,7 @@
       - [Changes in COUNTERS_DB](#changes-in-counters_db)
       - [Changes in Orchagent](#changes-in-orchagent)
       - [CLI Changes](#cli-changes)
-        - [CLI output on a WRED and ECN queue statistics supported platform](#cli-output-on-a-wred-and-ECN-queue-statistics-supported-platform)
+        - [CLI output on a WRED and ECN queue statistics supported platform](#cli-output-on-a-wred-and-ecn-queue-statistics-supported-platform)
         - [CLI output on a platform which supports WRED drop statistics and does not support ECN statistics](#cli-output-on-a-platform-which-supports-wred-drop-statistics-and-does-not-support-ecn-statistics)
         - [CLI output on a platform which supports ECN statistics and does not support WRED statistics](#cli-output-on-a-platform-which-supports-ecn-statistics-and-does-not-support-wred-statistics)
         - [CLI output on a VOQ-chassis platform](#cli-output-on-a-voq-chassis-platform)
@@ -239,7 +239,8 @@ There are few new CLIs and new CLI tokens are introduced for this feature. And a
     * Display the status of the counters : ```counterpoll show```
 
 * Following new CLIs are introduced for Per-queue WRED and ECN Statistics
-    * Statistics are cleared on user request : ```sonic-clear queue wredcounters```
+    * Clear egress queue statistics on user request : ```sonic-clear queue wredcounters```
+    * Clear VOQ statistics on user request (VOQ-chassis platforms) : ```sonic-clear queue wredcounters --voq```
     * Display the egress queue statistics on the console : ```show queue wredcounters [interface-name]```
     * Display the VOQ statistics on the console (VOQ-chassis platforms) : ```show queue wredcounters --voq [interface-name]```
 
@@ -295,12 +296,30 @@ Ethernet16    UC7             N/A              N/A                 0            
 ```
 #### CLI output on a VOQ-chassis platform
 
-On VOQ-chassis platforms, the existing `show queue wredcounters` command continues to display the egress-queue statistics. The same command with the `--voq` option displays the WRED statistics on the per-port VOQ objects. The `EcnMarked/*` columns appear as `N/A` on VOQ rows because ECN marking is performed and reported on the egress side.
+On VOQ-chassis platforms, WRED drop counters and ECN-marked counters are exposed at different queue objects: WRED drop counts accumulate at the ingress VOQ, while ECN marking is performed and reported at the egress queue. Two CLI variants surface these:
+
+* `show queue wredcounters [interface-name]` reads the egress queue counters. `WredDrp/*` columns are always `0` on VOQ-chassis platforms because WRED drops are not exposed at the egress queue object; `EcnMarked/*` columns show the actual ECN-marked traffic.
+
+```
+sonic-dut:~# show queue wredcounters Ethernet4
+     Port    TxQ    WredDrp/pkts    WredDrp/bytes    EcnMarked/pkts    EcnMarked/bytes
+---------  -----  --------------  ---------------  ----------------  -----------------
+Ethernet4    UC0               0                0                 0                  0
+Ethernet4    UC1               0                0                 0                  0
+Ethernet4    UC2               0                0                 0                  0
+Ethernet4    UC3               0                0                74            303,104
+Ethernet4    UC4               0                0                 0                  0
+Ethernet4    UC5               0                0                 0                  0
+Ethernet4    UC6               0                0                 0                  0
+Ethernet4    UC7               0                0                 0                  0
+```
+
+* `show queue wredcounters --voq [interface-name]` reads the per-port VOQ counters. `WredDrp/*` columns show the drops at the ingress VOQ; `EcnMarked/*` columns show `N/A` because ECN marking is not exposed at the VOQ object.
 
 ```
 sonic-dut:~# show queue wredcounters --voq Ethernet4
-                  Port    Voq    WredDrp/pkts    WredDrp/bytes    EcnMarked/pkts    EcnMarked/bytes
-----------------------  -----  --------------  ---------------  ----------------  -----------------
+                     Port    Voq    WredDrp/pkts    WredDrp/bytes    EcnMarked/pkts    EcnMarked/bytes
+-------------------------  -----  --------------  ---------------  ----------------  -----------------
 sonic-dut|Asic0|Ethernet4   VOQ0               0                0               N/A                N/A
 sonic-dut|Asic0|Ethernet4   VOQ1               0                0               N/A                N/A
 sonic-dut|Asic0|Ethernet4   VOQ2               0                0               N/A                N/A
@@ -310,6 +329,8 @@ sonic-dut|Asic0|Ethernet4   VOQ5               0                0               
 sonic-dut|Asic0|Ethernet4   VOQ6               0                0               N/A                N/A
 sonic-dut|Asic0|Ethernet4   VOQ7               0                0               N/A                N/A
 ```
+
+`sonic-clear queue wredcounters` resets the egress-queue counters shown above; `sonic-clear queue wredcounters --voq` resets the VOQ-side counters.
 
 #### show interface counters CLI output on a WRED drop statistics supported platform
 ```
