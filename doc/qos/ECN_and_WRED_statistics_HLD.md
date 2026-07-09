@@ -21,6 +21,7 @@
         - [CLI output on a platform which supports WRED drop statistics and does not support ECN statistics](#cli-output-on-a-platform-which-supports-wred-drop-statistics-and-does-not-support-ecn-statistics)
         - [CLI output on a platform which supports ECN statistics and does not support WRED statistics](#cli-output-on-a-platform-which-supports-ecn-statistics-and-does-not-support-wred-statistics)
         - [CLI output on a VOQ-chassis platform](#cli-output-on-a-voq-chassis-platform)
+        - [Clear CLI output on a VOQ-chassis platform](#clear-cli-output-on-a-voq-chassis-platform)
         - [show interface counters CLI output on a WRED drop statistics supported platform](#show-interface-counters-cli-output-on-a-wred-drop-statistics-supported-platform)
         - [show interface counters on a platform which does not support WRED drop statistics](#show-interface-counters-cli-output-on-a-platform-which-does-not-support-wred-drop-statistics)
     - [SAI API](#sai-api)
@@ -331,6 +332,26 @@ sonic-dut|Asic0|Ethernet4   VOQ7               0                0               
 ```
 
 `sonic-clear queue wredcounters` resets the egress-queue counters shown above; `sonic-clear queue wredcounters --voq` resets the VOQ-side counters.
+
+#### Clear CLI output on a VOQ-chassis platform
+
+The two clear variants are symmetric with the corresponding `show` variants: the default form iterates egress queue objects, and the `--voq` form iterates per-port VOQ objects.
+
+```
+sonic-dut:~# sonic-clear queue wredcounters
+Clear and update saved counters for Ethernet0
+Clear and update saved counters for Ethernet4
+Clear and update saved counters for Ethernet8
+...
+```
+
+```
+sonic-dut:~# sonic-clear queue wredcounters --voq
+Clear and update saved counters for sonic-dut|Asic0|Ethernet0
+Clear and update saved counters for sonic-dut|Asic0|Ethernet4
+Clear and update saved counters for sonic-dut|Asic0|Ethernet8
+...
+```
 
 #### show interface counters CLI output on a WRED drop statistics supported platform
 ```
