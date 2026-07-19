@@ -101,7 +101,7 @@ Rules of thumb:
 |---|-----------|-----------|----------|
 | B1 | Kubernetes worker (`INCLUDE_KUBERNETES`) | 202711 | Off by default, but still patched upstream, so users may exist. Deprecate and see. **Keep the ctrmgrd wrapper — it is not k8s-only.** |
 | B2 | Bullseye base containers (`docker-base-bullseye`, `docker-config-engine-bullseye`, `docker-swss-layer-bullseye`) | 202705 | Debian 11. May still be a live base for some containers. Move them to bookworm/trixie, then remove. |
-| B3 | FRR `split-unified` config mode (operator writes `frr.conf`) | 202711 | The manual mode. No hot reload — the bgp container runs supervisord, not systemd, so any `frr.conf` change forces a full FRR restart. Consolidate on `unified` (bgpcfgd + `config_db.json`). Confirm bgpcfgd/config_db covers the needed FRR features before removal. |
+| B3 | FRR `split-unified` config mode (operator writes `frr.conf`) | 202705 | The manual mode. No hot reload — the bgp container runs supervisord, not systemd, so any `frr.conf` change forces a full FRR restart. Consolidate on `unified` (bgpcfgd + `config_db.json`). Confirm bgpcfgd/config_db covers the needed FRR features before removal. |
 
 ### 8. Per-candidate detail
 
