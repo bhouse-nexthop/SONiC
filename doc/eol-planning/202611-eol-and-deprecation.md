@@ -101,6 +101,7 @@ Rules of thumb:
 |---|-----------|-----------|----------|
 | B1 | Bullseye base containers (`docker-base-bullseye`, `docker-config-engine-bullseye`, `docker-swss-layer-bullseye`) | 202705 | Debian 11. May still be a live base for some containers. Move them to bookworm/trixie, then remove. |
 | B2 | FRR `split-unified` config mode (operator writes `frr.conf`) | 202705 | The manual mode. No hot reload — the bgp container runs supervisord, not systemd, so any `frr.conf` change forces a full FRR restart. Consolidate on `unified` (bgpcfgd + `config_db.json`). Confirm bgpcfgd/config_db covers the needed FRR features before removal. |
+| B3 | REST API (`docker-sonic-restapi`) | 202711 | Baremetal VNET config API. Off by default, superseded by gNMI. Gap: gNMI has no equal for its bulk-route (207 partial) or route-expiry semantics — see B3 note. Confirm no live consumer (Microsoft) before removal. |
 
 ### 8. Per-candidate detail
 
@@ -121,6 +122,8 @@ Short notes on the ones with real gaps or tricky scope.
 Catch: `minigraph.py` still hardcodes the default as `separated` (init_cfg doesn't set it, so it resolves to `separated` today). This change must flip the default to `unified`.
 
 **A10 — old Debian bases.** Two shapes. **stretch** and **buster** each have real `docker-base-*` / `docker-config-engine-*` / `docker-swss-layer-*` containers to delete. **jessie** does not — there is no `docker-base-jessie`. What's left of jessie is the `sonic-slave-jessie` build slave and its `make jessie` target (Debian 8), plus jessie strings in the generic `docker-base` (armhf/arm64 sources, `FROM ...:jessie`). Drop the jessie slave and its wiring; check the generic `docker-base` before touching it. Many other jessie strings sit in code we already remove (p4, nephos). Bullseye is not here — it's deprecated for later removal (B1).
+
+**B3 — REST API.** Not a general REST interface — its spec calls it the "SONiC REST API for Baremetal Scenarios." An imperative agent for Azure baremetal VNET/VXLAN/VLAN config over HTTPS. Off by default; gNMI is the go-forward. Two things gNMI does not replace: bulk route programming with per-route partial success (HTTP `207`), and route expiry (timed route aging). Deprecate now; before removal, confirm with Microsoft that no baremetal control plane still drives it. Note: the mgmt-framework REST server is a different thing and stays.
 
 ### 9. Config and management impact
 
@@ -145,7 +148,6 @@ None. Every candidate is off by default, dead, or platform-specific to hardware 
 
 Held back until an owner confirms. Not proposed here.
 
-- **REST API** (`docker-sonic-restapi`): baremetal VNET config API. gNMI does not cover its bulk-route (207 partial) and route-expiry semantics. Needs Microsoft to confirm no live consumer.
 - **PDE** (`docker-pde`): Broadcom bring-up tool. Confirm with Broadcom.
 - **clounix platform:** nearly inert but added under a year ago. Confirm intent with the vendor.
 
