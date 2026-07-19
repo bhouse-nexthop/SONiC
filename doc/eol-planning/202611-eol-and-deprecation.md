@@ -68,7 +68,7 @@ Per release:
 2. **Two verdicts:**
    - **Remove now** — dead, broken, or EOL with no real users. Delete this cycle.
    - **Deprecate now, remove later** — still has possible users or needs migration work. Name a removal release.
-3. **Review.** Component owners and the TSC sign off. A feature is not removed without owner sign-off.
+3. **Review.** The community reviews it. This HLD gets scheduled at the weekly HLD review (Tuesdays). Component owners sign off. A feature is not removed without owner sign-off.
 4. **Announce.** Deprecations go in the release notes.
 5. **Remove** in the named release.
 
