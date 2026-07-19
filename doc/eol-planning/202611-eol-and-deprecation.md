@@ -93,7 +93,7 @@ Rules of thumb:
 | A7 | `docker-basic_router` | Dead SAI demo container. Wired into no build. Never shipped. | Nothing uses it. |
 | A8 | System Telemetry (`docker-sonic-telemetry`) | Off by default. Redundant — the gnmi container runs the **same binary**. | Keep the `telemetry` binary (gnmi needs it). Remove the container + `INCLUDE_SYSTEM_TELEMETRY` flag. See A8 note. |
 | A9 | Broken FRR modes (`separated`, `split`) | Both write per-daemon FRR config files. FRR 10.5.4 (shipped) dropped support for those. They no longer work. | Default becomes `unified`. `minigraph.py` still hardcodes `separated` — flip it. See A9 note. |
-| A10 | Old Debian build leftovers (jessie, stretch, buster) | Debian 8, 9, and 10. All long EOL. Risk: someone builds on a 6+ year old base. | jessie and stretch/buster are different shapes — see A10 note. Check nothing still `FROM`s a base before deleting. Bullseye is a separate case (B1). |
+| A10 | Old Debian build leftovers (jessie, stretch, buster) | Debian 8, 9, and 10. All long EOL. Risk: someone builds on a 6+ year old base. | jessie and stretch/buster are different — see A10 note. Check nothing still `FROM`s a base before deleting. Bullseye is a separate case (B1). |
 
 #### 7.2 Deprecate now, remove later
 
@@ -121,7 +121,7 @@ Short notes on the ones with real gaps or tricky scope.
 
 Catch: `minigraph.py` still hardcodes the default as `separated` (init_cfg doesn't set it, so it resolves to `separated` today). This change must flip the default to `unified`.
 
-**A10 — old Debian bases.** Two shapes. **stretch** and **buster** each have real `docker-base-*` / `docker-config-engine-*` / `docker-swss-layer-*` containers to delete. **jessie** does not — there is no `docker-base-jessie`. What's left of jessie is the `sonic-slave-jessie` build slave and its `make jessie` target (Debian 8), plus jessie strings in the generic `docker-base` (armhf/arm64 sources, `FROM ...:jessie`). Drop the jessie slave and its wiring; check the generic `docker-base` before touching it. Many other jessie strings sit in code we already remove (p4, nephos). Bullseye is not here — it's deprecated for later removal (B1).
+**A10 — old Debian bases.** Two cases here. **stretch** and **buster** each have real `docker-base-*` / `docker-config-engine-*` / `docker-swss-layer-*` containers to delete. **jessie** does not — there is no `docker-base-jessie`. What's left of jessie is the `sonic-slave-jessie` build slave and its `make jessie` target (Debian 8), plus jessie strings in the generic `docker-base` (armhf/arm64 sources, `FROM ...:jessie`). Drop the jessie slave and its wiring; check the generic `docker-base` before touching it. Many other jessie strings sit in code we already remove (p4, nephos). Bullseye is not here — it's deprecated for later removal (B1).
 
 **B3 — REST API.** Not a general REST interface — its spec calls it the "SONiC REST API for Baremetal Scenarios." An imperative agent for baremetal VNET/VXLAN/VLAN config over HTTPS. Off by default; gNMI is the go-forward. Two things gNMI does not replace: bulk route programming with per-route partial success (HTTP `207`), and route expiry (timed route aging). Deprecate now; before removal, confirm no baremetal control plane still drives it. Note: the mgmt-framework REST server is a different thing and stays.
 
