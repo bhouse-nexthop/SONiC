@@ -89,7 +89,7 @@ Rules of thumb:
 | A3 | Nephos platform (`platform/nephos`) | Vendor gone (~2019). No real commits in years. No device tree. | Cleanup is mostly the pipeline YAML. |
 | A4 | GoBGP FPM (`docker-fpm-gobgp`, `src/gobgp`, `rules/gobgp.*`) | Not buildable as an image since 2021, yet still compiles a 2017-era Go deb every build. FRR replaced it. | Drop the dead `DOCKER_FPM_GOBGP` / `DOCKER_FPM_QUAGGA` refs in `docker-fpm.*` too. |
 | A5 | Python 2 packages (`swsssdk-py2`, `redis-dump-load-py2`) | Gated off on bullseye/bookworm/trixie. Never built on any current release. | None. The py3 version is a separate case — see [13](#13-additional-findings). |
-| A6 | Kubernetes master (`INCLUDE_KUBERNETES_MASTER`) | Runs a full k8s control plane on a switch. All pins are years EOL (k8s 1.22, etcd 3.5.0, coredns 1.8.4, dashboard 2.7.0) plus Azure creds. Off, no real CI. | Biggest CVE win. Master only. The worker (`INCLUDE_KUBERNETES`) is a separate feature and **stays** — pre-WG security hardening on it points to a real (likely Microsoft) user. |
+| A6 | Kubernetes master (`INCLUDE_KUBERNETES_MASTER`) | Runs a full k8s control plane on a switch. All pins are years EOL (k8s 1.22, etcd 3.5.0, coredns 1.8.4, dashboard 2.7.0) plus cloud credential deps. Off, no real CI. | Biggest CVE win. Master only. The worker (`INCLUDE_KUBERNETES`) is a separate feature and **stays** — pre-WG security hardening on it points to a real user. |
 | A7 | `docker-basic_router` | Dead SAI demo container. Wired into no build. Never shipped. | Nothing uses it. |
 | A8 | System Telemetry (`docker-sonic-telemetry`) | Off by default. Redundant — the gnmi container runs the **same binary**. | Keep the `telemetry` binary (gnmi needs it). Remove the container + `INCLUDE_SYSTEM_TELEMETRY` flag. See A8 note. |
 | A9 | Broken FRR modes (`separated`, `split`) | Both write per-daemon FRR config files. FRR 10.5.4 (shipped) dropped support for those. They no longer work. | Default becomes `unified`. `minigraph.py` still hardcodes `separated` — flip it. See A9 note. |
@@ -101,7 +101,7 @@ Rules of thumb:
 |---|-----------|-----------|----------|
 | B1 | Bullseye base containers (`docker-base-bullseye`, `docker-config-engine-bullseye`, `docker-swss-layer-bullseye`) | 202705 | Debian 11. May still be a live base for some containers. Move them to bookworm/trixie, then remove. |
 | B2 | FRR `split-unified` config mode (operator writes `frr.conf`) | 202705 | The manual mode. No hot reload — the bgp container runs supervisord, not systemd, so any `frr.conf` change forces a full FRR restart. Consolidate on `unified` (bgpcfgd + `config_db.json`). Confirm bgpcfgd/config_db covers the needed FRR features before removal. |
-| B3 | REST API (`docker-sonic-restapi`) | 202711 | Baremetal VNET config API. Off by default, superseded by gNMI. Gap: gNMI has no equal for its bulk-route (207 partial) or route-expiry semantics — see B3 note. Confirm no live consumer (Microsoft) before removal. |
+| B3 | REST API (`docker-sonic-restapi`) | 202711 | Baremetal VNET config API. Off by default, superseded by gNMI. Gap: gNMI has no equal for its bulk-route (207 partial) or route-expiry semantics — see B3 note. Confirm no live consumer before removal. |
 
 ### 8. Per-candidate detail
 
@@ -123,7 +123,7 @@ Catch: `minigraph.py` still hardcodes the default as `separated` (init_cfg doesn
 
 **A10 — old Debian bases.** Two shapes. **stretch** and **buster** each have real `docker-base-*` / `docker-config-engine-*` / `docker-swss-layer-*` containers to delete. **jessie** does not — there is no `docker-base-jessie`. What's left of jessie is the `sonic-slave-jessie` build slave and its `make jessie` target (Debian 8), plus jessie strings in the generic `docker-base` (armhf/arm64 sources, `FROM ...:jessie`). Drop the jessie slave and its wiring; check the generic `docker-base` before touching it. Many other jessie strings sit in code we already remove (p4, nephos). Bullseye is not here — it's deprecated for later removal (B1).
 
-**B3 — REST API.** Not a general REST interface — its spec calls it the "SONiC REST API for Baremetal Scenarios." An imperative agent for Azure baremetal VNET/VXLAN/VLAN config over HTTPS. Off by default; gNMI is the go-forward. Two things gNMI does not replace: bulk route programming with per-route partial success (HTTP `207`), and route expiry (timed route aging). Deprecate now; before removal, confirm with Microsoft that no baremetal control plane still drives it. Note: the mgmt-framework REST server is a different thing and stays.
+**B3 — REST API.** Not a general REST interface — its spec calls it the "SONiC REST API for Baremetal Scenarios." An imperative agent for baremetal VNET/VXLAN/VLAN config over HTTPS. Off by default; gNMI is the go-forward. Two things gNMI does not replace: bulk route programming with per-route partial success (HTTP `207`), and route expiry (timed route aging). Deprecate now; before removal, confirm no baremetal control plane still drives it. Note: the mgmt-framework REST server is a different thing and stays.
 
 ### 9. Config and management impact
 
