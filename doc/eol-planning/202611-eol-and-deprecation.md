@@ -16,6 +16,7 @@
 - [10. Warmboot/Fastboot impact](#10-warmbootfastboot-impact)
 - [11. Testing](#11-testing)
 - [12. Open items](#12-open-items)
+- [13. Additional findings](#13-additional-findings)
 
 ### 1. Revision
 
@@ -87,20 +88,20 @@ Rules of thumb:
 | A2 | Standalone P4 platform (`platform/p4`) | Dead reference model since ~2022. In no CI. 12 MB, 923 files, 4 stale submodules. | Keep `rules/p4lang.mk` (bmv2/p4c/PI). DASH SAI and PTF still use it. |
 | A3 | Nephos platform (`platform/nephos`) | Vendor gone (~2019). No real commits in years. No device tree. | Cleanup is mostly the pipeline YAML. |
 | A4 | GoBGP FPM (`docker-fpm-gobgp`, `src/gobgp`, `rules/gobgp.*`) | Not buildable as an image since 2021, yet still compiles a 2017-era Go deb every build. FRR replaced it. | Drop the dead `DOCKER_FPM_GOBGP` / `DOCKER_FPM_QUAGGA` refs in `docker-fpm.*` too. |
-| A5 | Python 2 packages (`swsssdk-py2`, `redis-dump-load-py2`) | Gated off on bullseye/bookworm/trixie. Never built on any current release. | None. Py3 versions stay (see B1). |
-| A6 | Kubernetes master (`INCLUDE_KUBERNETES_MASTER`) | Runs a full k8s control plane on a switch. All pins are years EOL (k8s 1.22, etcd 3.5.0, coredns 1.8.4, dashboard 2.7.0) plus Azure creds. Off, no real CI. | Biggest CVE win. Master only — worker is separate (see B2). |
+| A5 | Python 2 packages (`swsssdk-py2`, `redis-dump-load-py2`) | Gated off on bullseye/bookworm/trixie. Never built on any current release. | None. The py3 version is a separate case — see [13](#13-additional-findings). |
+| A6 | Kubernetes master (`INCLUDE_KUBERNETES_MASTER`) | Runs a full k8s control plane on a switch. All pins are years EOL (k8s 1.22, etcd 3.5.0, coredns 1.8.4, dashboard 2.7.0) plus Azure creds. Off, no real CI. | Biggest CVE win. Master only — worker is separate (see B1). |
 | A7 | `docker-basic_router` | Dead SAI demo container. Wired into no build. Never shipped. | Nothing uses it. |
 | A8 | System Telemetry (`docker-sonic-telemetry`) | Off by default. Redundant — the gnmi container runs the **same binary**. | Keep the `telemetry` binary (gnmi needs it). Remove the container + `INCLUDE_SYSTEM_TELEMETRY` flag. See A8 note. |
 | A9 | Broken FRR modes (`separated`, `split`) | Both write per-daemon FRR config files. FRR 10.5.4 (shipped) dropped support for those. They no longer work. | Default becomes `unified`. `minigraph.py` still hardcodes `separated` — flip it. See A9 note. |
-| A10 | Old Debian build leftovers (jessie, stretch, buster) | Debian 8, 9, and 10. All long EOL. Risk: someone builds on a 6+ year old base. | jessie and stretch/buster are different shapes — see A10 note. Check nothing still `FROM`s a base before deleting. Bullseye is a separate case (B3). |
+| A10 | Old Debian build leftovers (jessie, stretch, buster) | Debian 8, 9, and 10. All long EOL. Risk: someone builds on a 6+ year old base. | jessie and stretch/buster are different shapes — see A10 note. Check nothing still `FROM`s a base before deleting. Bullseye is a separate case (B2). |
 
 #### 7.2 Deprecate now, remove later
 
 | # | Candidate | Remove in | Why wait |
 |---|-----------|-----------|----------|
-| B1 | `swsssdk-py3` | 202705 | Still imported at runtime (`dualtor_neighbor_check.py`), and by `sonic-py-common` and the vpp container. Move them to `swsscommon` first. |
-| B2 | Kubernetes worker (`INCLUDE_KUBERNETES`) | 202711 | Off by default, but still patched upstream, so users may exist. Deprecate and see. **Keep the ctrmgrd wrapper — it is not k8s-only.** |
-| B3 | Bullseye base containers (`docker-base-bullseye`, `docker-config-engine-bullseye`, `docker-swss-layer-bullseye`) | 202705 | Debian 11. May still be a live base for some containers. Move them to bookworm/trixie, then remove. |
+| B1 | Kubernetes worker (`INCLUDE_KUBERNETES`) | 202711 | Off by default, but still patched upstream, so users may exist. Deprecate and see. **Keep the ctrmgrd wrapper — it is not k8s-only.** |
+| B2 | Bullseye base containers (`docker-base-bullseye`, `docker-config-engine-bullseye`, `docker-swss-layer-bullseye`) | 202705 | Debian 11. May still be a live base for some containers. Move them to bookworm/trixie, then remove. |
+| B3 | FRR `split-unified` config mode (operator writes `frr.conf`) | 202711 | The manual mode. No hot reload — the bgp container runs supervisord, not systemd, so any `frr.conf` change forces a full FRR restart. Consolidate on `unified` (bgpcfgd + `config_db.json`). Confirm bgpcfgd/config_db covers the needed FRR features before removal. |
 
 ### 8. Per-candidate detail
 
@@ -112,16 +113,20 @@ Short notes on the ones with real gaps or tricky scope.
 
 **A8 — System Telemetry.** Confirmed: both containers exec the **same binary**, `/usr/sbin/telemetry` (telemetry `telemetry.sh:168`, gnmi `gnmi-native.sh:155`). There is no separate gNMI server — the `telemetry` binary *is* the server; the name is legacy. Both read the same `TELEMETRY|gnmi` config; the gnmi start script just adds ZMQ and VRF args. So parity is exact, not approximate — full Get/Set/Subscribe and dial-out. No gap. The `telemetry` binary stays (gnmi runs it); we drop the redundant container and the `INCLUDE_SYSTEM_TELEMETRY` flag.
 
-**A9 — FRR modes.** `docker_init.sh` has four modes. `separated` and `split` write per-daemon files (`bgpd.conf`, `zebra.conf`, ...). FRR 10.5 no longer reads those, so both are broken. Keep the unified path — one `frr.conf`, `service integrated-vtysh-config`. The default becomes `unified`. Catch: `minigraph.py` still hardcodes the default as `separated`, and init_cfg doesn't set it, so today it resolves to `separated`. This change must flip that default to `unified`. So: drop two dead modes, plus a default flip.
+**A9 — FRR modes.** `docker_routing_config_mode` has four values:
 
-**A10 — old Debian bases.** Two shapes. **stretch** and **buster** each have real `docker-base-*` / `docker-config-engine-*` / `docker-swss-layer-*` containers to delete. **jessie** does not — there is no `docker-base-jessie`. What's left of jessie is the `sonic-slave-jessie` build slave and its `make jessie` target (Debian 8), plus jessie strings in the generic `docker-base` (armhf/arm64 sources, `FROM ...:jessie`). Drop the jessie slave and its wiring; check the generic `docker-base` before touching it. Many other jessie strings sit in code we already remove (p4, nephos). Bullseye is not here — it's deprecated for later removal (B3).
+- `separated`, `split` — write per-daemon config files (`bgpd.conf`, `zebra.conf`, ...). FRR 10.5 dropped per-daemon config files, so both are broken. **Remove.**
+- `unified` — config comes from bgpcfgd and `config_db.json`. The supported path. **Keep, make it the default.**
+- `split-unified` — the operator writes `frr.conf` by hand. **Deprecate (B3).** No hot reload (supervisord, not systemd), so any change forces a full FRR restart — impractical for production.
 
-**B1 — swsssdk-py3.** Looks dead but isn't. `swsscommon` replaces it, but real code still imports `swsssdk` at runtime. Migrate those, then drop the wheel.
+Catch: `minigraph.py` still hardcodes the default as `separated` (init_cfg doesn't set it, so it resolves to `separated` today). This change must flip the default to `unified`.
+
+**A10 — old Debian bases.** Two shapes. **stretch** and **buster** each have real `docker-base-*` / `docker-config-engine-*` / `docker-swss-layer-*` containers to delete. **jessie** does not — there is no `docker-base-jessie`. What's left of jessie is the `sonic-slave-jessie` build slave and its `make jessie` target (Debian 8), plus jessie strings in the generic `docker-base` (armhf/arm64 sources, `FROM ...:jessie`). Drop the jessie slave and its wiring; check the generic `docker-base` before touching it. Many other jessie strings sit in code we already remove (p4, nephos). Bullseye is not here — it's deprecated for later removal (B2).
 
 ### 9. Config and management impact
 
-- **A6 / A8 / B2:** these are feature containers. Removing them drops their `FEATURE` table entries and build flags. No CLI change for users who never turned them on.
-- **A9:** drops `separated` and `split` from `docker_routing_config_mode`. Default becomes `unified` (also flip the `minigraph.py` default).
+- **A6 / A8 / B1:** these are feature containers. Removing them drops their `FEATURE` table entries and build flags. No CLI change for users who never turned them on.
+- **A9 / B3:** drops the two broken modes (`separated`, `split`) and makes `unified` (bgpcfgd + `config_db.json`) the default (also flip the `minigraph.py` default). `split-unified` (the manual, hand-written `frr.conf` mode) is deprecated and removed later, leaving `unified` as the only mode.
 - **A2 / A3 / A1:** platform removals. No effect on other platforms.
 - No YANG changes beyond dropping models for removed features (e.g. `sonic-kubernetes_master.yang` with A6).
 
@@ -135,7 +140,6 @@ None. Every candidate is off by default, dead, or platform-specific to hardware 
 - **Image diff:** confirm removed packages are gone from the SBOM and CVE scan.
 - **A8:** gnmi container still serves Get/Set/Subscribe and dial-out.
 - **A9:** default FRR path still comes up and programs routes.
-- **B1:** `dualtor_neighbor_check` and `sonic-py-common` work on `swsscommon`.
 - **A10:** all remaining containers build with nothing pointing at the deleted bases.
 
 ### 12. Open items
@@ -146,3 +150,9 @@ Held back until an owner confirms. Not proposed here.
 - **Kubernetes worker owner check:** confirm the user base before setting a firm removal date.
 - **PDE** (`docker-pde`): Broadcom bring-up tool. Confirm with Broadcom.
 - **clounix platform:** nearly inert but added under a year ago. Confirm intent with the vendor.
+
+### 13. Additional findings
+
+Real, but out of scope here. Removing them needs code porting, which this HLD does not cover. Noted so they are tracked.
+
+- **`swsssdk-py3`.** The old Python Redis SDK. `swsscommon` replaces it, but code still imports `swsssdk` at runtime (`sonic-utilities/scripts/dualtor_neighbor_check.py`, `sonic-py-common`, the vpp container). Can't deprecate until those are ported to `swsscommon`. (Its py2 twin is a clean remove — A5.)
