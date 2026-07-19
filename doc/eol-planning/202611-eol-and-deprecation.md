@@ -11,7 +11,6 @@
 - [7. Candidates for 202611](#7-candidates-for-202611)
   - [7.1 Remove now](#71-remove-now)
   - [7.2 Deprecate now, remove later](#72-deprecate-now-remove-later)
-  - [7.3 Looked at, keeping](#73-looked-at-keeping)
 - [8. Per-candidate detail](#8-per-candidate-detail)
 - [9. Config and management impact](#9-config-and-management-impact)
 - [10. Warmboot/Fastboot impact](#10-warmbootfastboot-impact)
@@ -102,15 +101,6 @@ Rules of thumb:
 | B1 | `swsssdk-py3` | 202705 | Still imported at runtime (`dualtor_neighbor_check.py`), and by `sonic-py-common` and the vpp container. Move them to `swsscommon` first. |
 | B2 | Kubernetes worker (`INCLUDE_KUBERNETES`) | 202711 | Off by default, but still patched upstream, so users may exist. Deprecate and see. **Keep the ctrmgrd wrapper — it is not k8s-only.** |
 | B3 | Bullseye base containers (`docker-base-bullseye`, `docker-config-engine-bullseye`, `docker-swss-layer-bullseye`) | 202705 | Debian 11. May still be a live base for some containers. Move them to bookworm/trixie, then remove. |
-
-#### 7.3 Looked at, keeping
-
-We checked these and are **not** proposing removal. Listed so reviewers know we looked.
-
-- **Live silicon vendors:** centec, centec-arm64, marvell-teralynx, pensando, nokia-vs. Out of CI does not mean unused — these have real HWSKUs or recent feature work.
-- **Real (if niche) users:** `docker-sonic-p4rt` (Google PINS), `docker-iccpd` (MCLAG), `docker-sonic-redfish` (new in 2026, aspeed BMC, in CI).
-- **Test-only, not image surface:** `docker-ptf`, `docker-ptf-sai`.
-- **p4lang toolchain** (`rules/p4lang.mk`): kept — DASH SAI and PTF depend on it.
 
 ### 8. Per-candidate detail
 
