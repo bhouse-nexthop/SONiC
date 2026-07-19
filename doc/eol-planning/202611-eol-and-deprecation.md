@@ -1,4 +1,4 @@
-# SONiC EOL & Deprecation Plan — 202611
+# SONiC EOL and Deprecation Plan for 202611
 
 ## Table of Content
 
@@ -10,20 +10,20 @@
 - [6. Process](#6-process)
 - [7. Candidates for 202611](#7-candidates-for-202611)
   - [7.1 Remove now](#71-remove-now)
-    - [Barefoot / Tofino platform (with DTEL)](#barefoot--tofino-platform-with-dtel)
-    - [Standalone P4 platform](#standalone-p4-platform)
-    - [Nephos platform](#nephos-platform)
-    - [GoBGP FPM container](#gobgp-fpm-container)
-    - [Python 2 packages](#python-2-packages)
-    - [Kubernetes master](#kubernetes-master)
-    - [docker-basic_router](#docker-basic_router)
-    - [System Telemetry container](#system-telemetry-container)
-    - [Broken FRR config modes](#broken-frr-config-modes)
-    - [Old Debian build leftovers](#old-debian-build-leftovers)
+    - [7.1.1 Barefoot / Tofino platform (with DTEL)](#711-barefoot--tofino-platform-with-dtel)
+    - [7.1.2 Standalone P4 platform](#712-standalone-p4-platform)
+    - [7.1.3 Nephos platform](#713-nephos-platform)
+    - [7.1.4 GoBGP FPM container](#714-gobgp-fpm-container)
+    - [7.1.5 Python 2 packages](#715-python-2-packages)
+    - [7.1.6 Kubernetes master](#716-kubernetes-master)
+    - [7.1.7 docker-basic_router](#717-docker-basic_router)
+    - [7.1.8 System Telemetry container](#718-system-telemetry-container)
+    - [7.1.9 Broken FRR config modes](#719-broken-frr-config-modes)
+    - [7.1.10 Old Debian build leftovers](#7110-old-debian-build-leftovers)
   - [7.2 Deprecate now, remove later](#72-deprecate-now-remove-later)
-    - [Bullseye base containers — remove in 202705](#bullseye-base-containers--remove-in-202705)
-    - [FRR split-unified config mode — remove in 202705](#frr-split-unified-config-mode--remove-in-202705)
-    - [REST API — remove in 202711](#rest-api--remove-in-202711)
+    - [7.2.1 Bullseye base containers](#721-bullseye-base-containers)
+    - [7.2.2 FRR split-unified config mode](#722-frr-split-unified-config-mode)
+    - [7.2.3 REST API](#723-rest-api)
 - [8. Config and management impact](#8-config-and-management-impact)
 - [9. Warmboot/Fastboot impact](#9-warmbootfastboot-impact)
 - [10. Testing](#10-testing)
@@ -39,18 +39,18 @@
 
 This HLD does two things:
 
-1. Sets up a repeatable, per-release process to deprecate and remove SONiC features.
-2. Lists the features we propose to act on in **202611**.
+1. It sets up a repeatable, per-release process to deprecate and remove SONiC features.
+2. It lists the features we propose to act on in 202611.
 
-It comes out of the SONiC Security Working Group. Goal: shrink the attack surface. Less code means fewer packages, fewer CVEs, less to build and test.
+The work comes from the SONiC Security Working Group, whose goal is to shrink the attack surface. Less code means fewer packages, fewer CVEs, and less to build and test.
 
-Releases ship twice a year: **November (`YYYY11`)** and **May (`YYYY05`)**. So the cycles here are 202611 (Nov 2026), 202705 (May 2027), 202711 (Nov 2027).
+Releases ship twice a year, in November (`YYYY11`) and in May (`YYYY05`). The cycles referenced here are 202611 (November 2026), 202705 (May 2027), and 202711 (November 2027).
 
 ### 3. Definitions/Abbreviations
 
 | Term | Meaning |
 |------|---------|
-| Deprecate | Mark a feature as going away. Still ships, but warns of removal. |
+| Deprecate | Mark a feature as going away. It still ships, but it warns of removal. |
 | Remove | Delete the code and its build wiring. |
 | SBOM | Software Bill of Materials. |
 | DTEL | Data-plane telemetry (in-band / INT). |
@@ -60,134 +60,151 @@ Releases ship twice a year: **November (`YYYY11`)** and **May (`YYYY05`)**. So t
 
 ### 4. Overview
 
-SONiC still ships features that few or no one runs. Some are dead. Some broke when a dependency moved on. Some were tied to hardware that no longer exists. Each one still adds packages to the image, findings to every CVE scan, and jobs to CI.
+SONiC still ships features that few or no one runs. Some of them are dead. Some broke when a dependency moved on. Some were tied to hardware that no longer exists. Each one still adds packages to the image, findings to every CVE scan, and jobs to CI.
 
-This HLD proposes a standing process to retire such features, plus the first batch to act on.
+This HLD proposes a standing process to retire those features, along with the first batch to act on.
 
 ### 5. Why remove code
 
 - The best fix for a CVE is to delete the code that carries it.
-- Unmaintained code is a standing risk. It rarely gets patched.
+- Unmaintained code is a standing risk, because it rarely gets patched.
 - Dead build wiring hides real problems and slows builds.
-- Fewer features = smaller image, fewer scans to triage, less CI.
+- Fewer features mean a smaller image, fewer scans to triage, and less CI.
 
 ### 6. Process
 
-Per release:
+For each release:
 
-1. **Propose.** File (or update) this HLD with candidates. Each candidate says what it is, what replaces it, the gap (what you lose), and a verdict.
-2. **Two verdicts:**
-   - **Remove now** — dead, broken, or EOL with no real users. Delete this cycle.
-   - **Deprecate now, remove later** — still has possible users or needs migration work. Name a removal release.
-3. **Review.** The community reviews it. This HLD gets scheduled at the weekly HLD review (Tuesdays). Component owners sign off. A feature is not removed without owner sign-off.
+1. **Propose.** File or update this HLD with candidates. Each candidate states what it is, what replaces it, the gap in what you lose, and a verdict.
+2. **Pick a verdict.** There are two:
+   - **Remove now:** dead, broken, or EOL with no real users. Delete it this cycle.
+   - **Deprecate now, remove later:** still has possible users or needs migration work. Name a removal release.
+3. **Review.** The community reviews it, and this HLD is scheduled at the weekly HLD review on Tuesdays. Component owners sign off. A feature is not removed without owner sign-off.
 4. **Announce.** Deprecations go in the release notes.
 5. **Remove** in the named release.
 
-Rules of thumb:
+A few rules of thumb guide the calls above:
 
-- "Not built by default" and "not in CI" are **hints**, not proof. We check real use before we call anything dead.
-- A forced bump (libyang, base image, submodule pointer, mass format) does **not** count as maintenance.
+- "Not built by default" and "not in CI" are hints, not proof. We check real use before calling anything dead.
+- A forced bump, such as a libyang, base image, submodule pointer, or mass format change, does not count as maintenance.
 - If a replacement has a gap, we name it so users can speak up.
 
 ### 7. Candidates for 202611
 
-Each candidate below stands on its own: what it is, why it goes, and anything to watch out for.
+Each candidate below stands on its own. It states what the feature is, why it should go, the paths to remove, and anything to watch out for.
 
 #### 7.1 Remove now
 
-##### Barefoot / Tofino platform (with DTEL)
+##### 7.1.1 Barefoot / Tofino platform (with DTEL)
 
-`platform/barefoot`. Intel ended the Tofino line, and the platform is absent from the CI build matrix (aspeed_arm64, broadcom, marvell-prestera, mellanox, nvidia_bluefield, vs, alpinevs, vpp) — so it is unbuilt and untested. It's about 7.7 MB / 880 files and pulls in the Barefoot SAI, saithrift, `docker-syncd-bfn`, `docker-saiserver-bfn`, and the ODM sub-platforms built on Tofino (Accton Wedge100BF, Arista 7170, Ingrasys, Netberg, WNC).
+Intel has ended the Tofino line, and the platform is not in the CI build matrix (aspeed_arm64, broadcom, marvell-prestera, mellanox, nvidia_bluefield, vs, alpinevs, and vpp). Because nothing builds it, nothing tests it. The platform is roughly 7.7 MB across about 880 files, and it pulls in the Barefoot SAI, saithrift, the `docker-syncd-bfn` and `docker-saiserver-bfn` containers, and the ODM sub-platforms built on Tofino (Accton Wedge100BF, Arista 7170, Ingrasys, Netberg, and WNC).
 
-Data-plane telemetry (DTEL, `dtelorch`) only ran on Tofino in practice, so it goes with the platform. TAM, added in 202605, covers the same need. Also delete the stale `barefoot` job still sitting in `azure-pipelines-build.yml`.
+Data-plane telemetry (DTEL, `dtelorch`) only ever ran on Tofino in practice, so it should be removed with the platform. TAM, which was added in 202605, already covers the same need.
 
-##### Standalone P4 platform
+**Remove:** `platform/barefoot/`; the Tofino `device/` folders (Accton Wedge100BF, Arista 7170, Ingrasys, Netberg, WNC); `src/sonic-swss/orchagent/dtelorch.{cpp,h}` and its wiring in `orchagent/orchdaemon.cpp`; the `barefoot` job in `.azure-pipelines/azure-pipelines-build.yml`; the `barefoot` filter in `rules/docker-platform-monitor.mk`.
 
-`platform/p4` — the old bmv2 software behavioral model (`docker-sonic-p4`, `sai-p4-bm`, `p4c-bm`, `tenjin`, `p4-hlir`). It's a reference target, not real hardware. Dead since around 2022, in no CI, about 12 MB / 920 files with 4 stale external submodules. The only thing referencing it outside `platform/p4/` is a Debian-8-era TODO in `rules/redis.mk`.
+##### 7.1.2 Standalone P4 platform
 
-Remove `platform/p4/*`, its submodules, and that TODO. Leave `rules/p4lang.mk` alone — the p4lang toolchain (bmv2/p4c/PI) it builds is a live dependency of DASH SAI, which ships in `sonic-vs.img.gz`, and of the PTF test containers.
+This is the old bmv2 software behavioral model. It is a reference target rather than real hardware, and it has been dead since roughly 2022. Nothing in CI builds it. It is about 12 MB across 920 files, and it pulls in four stale external submodules. The only thing that references it outside `platform/p4/` is a Debian 8 era TODO in `rules/redis.mk`.
 
-##### Nephos platform
+**Remove:** `platform/p4/` (which includes `docker-sonic-p4`, `sai-p4-bm`, `p4c-bm`, `tenjin`, and `p4-hlir`); the four P4 submodule entries in `.gitmodules` (`platform/p4/p4c-bm/p4c-bm`, `platform/p4/p4-hlir/p4-hlir`, `platform/p4/p4-hlir/p4-hlir-v1.1`, `platform/p4/SAI-P4-BM`); the stale TODO in `rules/redis.mk`.
+**Keep:** `rules/p4lang.mk`. The p4lang toolchain it builds (bmv2, p4c, and PI) is a live dependency of DASH SAI, which ships in `sonic-vs.img.gz`, and of the PTF test containers.
 
-`platform/nephos`. The Nephos/MediaTek silicon vendor left the market around 2019. About 2.3 MB / 160 files (`docker-syncd-nephos`, SAI, saithrift, ODM modules). There's no `device/nephos` tree, no genuine commit in years, and it isn't in CI. Cleanup is mostly its `azure-pipelines-build.yml` entry.
+##### 7.1.3 Nephos platform
 
-##### GoBGP FPM container
+The Nephos and MediaTek switch silicon vendor left the market around 2019. The platform is about 2.3 MB across 160 files. There is no `device/nephos` tree, there has been no genuine commit in years, and it is not in CI.
 
-`docker-fpm-gobgp`, `src/gobgp`, `rules/gobgp.*`. SONiC standardized on FRR (`SONIC_ROUTING_STACK = frr`). The gobgp image-build rules were deleted back in 2021, so it hasn't been buildable as an image since — yet the build still compiles a 2017-vintage Go GOBGP `.deb` that nothing installs.
+**Remove:** `platform/nephos/`; the `nephos` job in `.azure-pipelines/azure-pipelines-build.yml`.
 
-Remove the container, `src/gobgp`, the `rules/gobgp.*` recipes, and the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` references in `rules/docker-fpm.*`. Nothing is lost — FRR does all of this.
+##### 7.1.4 GoBGP FPM container
 
-##### Python 2 packages
+SONiC standardized on FRR, which is set by `SONIC_ROUTING_STACK = frr`. The GoBGP image build rules were deleted back in 2021, so it has not been buildable as an image since then. Even so, every build still compiles a 2017 era Go GOBGP package that nothing installs. Removing it loses nothing, because FRR already provides all of this.
 
-`swsssdk-py2` and `redis-dump-load-py2`. Both are gated behind `ENABLE_PY2_MODULES`, which is off for bullseye, bookworm, and trixie — so neither is built on any current release. Pure dead weight. (The py3 version of swsssdk is a different case — it's still in use, so it's out of scope here and noted under Additional findings.)
+**Remove:** `dockers/docker-fpm-gobgp/`, `src/gobgp/`, `rules/gobgp.mk`, and `rules/gobgp.dep`; the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` references in `rules/docker-fpm.mk` and `rules/docker-fpm.dep`; the gobgp dependency in the non-frr branch of `platform/vs/docker-sonic-vs.mk`.
 
-##### Kubernetes master
+##### 7.1.5 Python 2 packages
 
-`INCLUDE_KUBERNETES_MASTER`. This runs a full Kubernetes control plane on the switch — apiserver, controller, scheduler, proxy, etcd 3.5.0, coredns 1.8.4, and the dashboard 2.7.0 web UI — plus cloud credential libraries for backups. Every one of those is years past end of life, so this is the single biggest CVE-surface win in the list. It's off by default and has no real CI.
+Both packages are gated behind `ENABLE_PY2_MODULES`, which is off for bullseye, bookworm, and trixie. As a result, neither is built on any current release, so both are dead weight. The py3 version of swsssdk is a separate matter, because it is still in use. It is out of scope here and is noted under Additional findings.
 
-This is master only. The worker feature (`INCLUDE_KUBERNETES`) is separate and stays — someone hardened its cluster-join security before this WG existed, which points to a real user. Removing master also drops `sonic-kubernetes_master.yang`. Leave the `ctrmgrd` container wrapper alone; it runs for ordinary feature start/stop, not just k8s.
+**Remove:** `rules/swsssdk-py2.mk`, `rules/swsssdk-py2.dep`, `rules/redis-dump-load-py2.mk`, and `rules/redis-dump-load-py2.dep`; the `SWSSSDK_PY2` dependency lines in `rules/sonic-py-common.mk` and `rules/swsssdk-py3.mk`.
 
-##### docker-basic_router
+##### 7.1.6 Kubernetes master
 
-A SAI demo/reference container. It's wired into no build rule, never ships in an image, and isn't in CI. Its last real change was 2020. Nothing uses it — straight delete.
+This runs a full Kubernetes control plane on the switch. That includes the apiserver, controller, scheduler, proxy, etcd 3.5.0, coredns 1.8.4, and the dashboard 2.7.0 web UI, along with cloud credential libraries used for backups. Every one of those versions is years past end of life, which makes this the single biggest reduction in CVE surface in this list. It is off by default and has no real CI coverage.
 
-##### System Telemetry container
+This applies to the master only. The worker feature (`INCLUDE_KUBERNETES`) is a separate feature and should stay. Someone hardened its cluster-join security before this working group existed, which points to a real user.
 
-`docker-sonic-telemetry`, off by default. It's redundant: this container and the gnmi container run the exact same binary, `/usr/sbin/telemetry` (started by `telemetry.sh` and `gnmi-native.sh` respectively). There is no separate gNMI server — the `telemetry` binary *is* the server; the name is just historical. Both read the same `TELEMETRY|gnmi` config, and the gnmi start script only adds ZMQ and VRF options on top. So there is no functional gap: Get/Set/Subscribe and dial-out are identical.
+**Remove:** `files/image_config/kubernetes/` (`kubernetes_master_entrance.sh`, `kubernetes_master_entrance.service`, `kubernetes.list`); the `INCLUDE_KUBERNETES_MASTER` flag and the master version pins in `rules/config`; the master-only blocks in `files/build_templates/sonic_debian_extension.j2`; `sonic-kubernetes_master.yang`; the master build in `.azure-pipelines/azure-pipelines-build.yml`.
+**Keep:** `INCLUDE_KUBERNETES` (the worker), `src/sonic-ctrmgrd*`, and the `ctrmgrd` wrapper, which runs for ordinary feature start and stop rather than only for k8s.
 
-Remove the container and the `INCLUDE_SYSTEM_TELEMETRY` flag. Keep the `telemetry` binary — the gnmi container runs it.
+##### 7.1.7 docker-basic_router
 
-##### Broken FRR config modes
+This is a SAI demo and reference container. It is not wired into any build rule, it never ships in an image, and it is not in CI. Its last real change was in 2020, and nothing uses it.
 
-`docker_routing_config_mode` has four values. `separated` and `split` write per-daemon config files (`bgpd.conf`, `zebra.conf`, and so on). FRR 10.5.4, which SONiC ships, dropped support for per-daemon config files — so both of these modes are broken today. This is really dead-code removal.
+**Remove:** `dockers/docker-basic_router/`.
 
-The supported path is `unified`, where config comes from bgpcfgd and `config_db.json`; make that the default. Right now `minigraph.py` hardcodes the default as `separated` (and init_cfg doesn't set it, so it resolves to `separated`), so this change must flip that default to `unified`. The fourth mode, `split-unified`, still works and is handled under Deprecate.
+##### 7.1.8 System Telemetry container
 
-##### Old Debian build leftovers
+This container is off by default, and it is redundant. Both this container and the gnmi container run the same binary, `/usr/sbin/telemetry`, started by `telemetry.sh` and `gnmi-native.sh` respectively. There is no separate gNMI server. The `telemetry` binary is the server, and the name is only historical. Both containers read the same `TELEMETRY|gnmi` config, and the gnmi start script simply adds ZMQ and VRF options on top. There is therefore no functional gap, because Get, Set, Subscribe, and dial-out are identical in both.
 
-Debian 8 (jessie), 9 (stretch), and 10 (buster) are all long past end of life. The risk is someone building a new container on a 6+-year-old base.
+**Remove:** `dockers/docker-sonic-telemetry/`, `rules/docker-telemetry.mk`, and `rules/docker-telemetry.dep`; the `INCLUDE_SYSTEM_TELEMETRY` flag in `rules/config`.
+**Keep:** the `telemetry` binary, which is built by sonic-gnmi and run by the gnmi container.
 
-stretch and buster each have real `docker-base-*`, `docker-config-engine-*`, and `docker-swss-layer-*` containers to delete. jessie is different — there's no `docker-base-jessie`. What's left of jessie is the `sonic-slave-jessie` build slave and its `make jessie` target, plus jessie strings in the generic `docker-base` (armhf/arm64 sources and `FROM ...:jessie`); drop the slave and its wiring, and check the generic `docker-base` before touching it.
+##### 7.1.9 Broken FRR config modes
 
-Before deleting any base, confirm nothing still bases a container on it. Bullseye (Debian 11) is newer and handled under Deprecate.
+`docker_routing_config_mode` has four values. Both `separated` and `split` write per-daemon config files such as `bgpd.conf` and `zebra.conf`. FRR 10.5.4, which SONiC ships, dropped support for per-daemon config files, so both of these modes are broken today. Removing them is really just deleting dead code.
+
+The supported path is `unified`, where the config comes from bgpcfgd and `config_db.json`, and that should become the default. Today `minigraph.py` hardcodes the default as `separated`, and init_cfg does not set it, so it resolves to `separated`. This change must flip that default to `unified`. The fourth mode, `split-unified`, still works and is handled under Deprecate.
+
+**Change:** remove the `separated` and `split` branches in `dockers/docker-fpm-frr/docker_init.sh` and the per-daemon templates under `dockers/docker-fpm-frr/frr/{bgpd,zebra,staticd,sharpd}/`; flip the default in `src/sonic-config-engine/minigraph.py` from `separated` to `unified`.
+
+##### 7.1.10 Old Debian build leftovers
+
+Debian 8 (jessie), Debian 9 (stretch), and Debian 10 (buster) are all long past end of life. The risk is that someone builds a new container on a base that is more than six years old. Before deleting any base, confirm that nothing still builds a container on it. Bullseye is Debian 11, which is newer, and it is handled under Deprecate.
+
+**Remove (stretch):** `dockers/docker-base-stretch/`, `rules/docker-base-stretch.{mk,dep}`, `dockers/docker-config-engine-stretch/`, `rules/docker-config-engine-stretch.{mk,dep}`.
+**Remove (buster):** `dockers/docker-base-buster/`, `rules/docker-base-buster.{mk,dep}`, `dockers/docker-config-engine-buster/`, `rules/docker-config-engine-buster.{mk,dep}`, `dockers/docker-swss-layer-buster/`, `rules/docker-swss-layer-buster.{mk,dep}`.
+**Remove (jessie):** `sonic-slave-jessie/`, the `jessie` target in `Makefile`, and the jessie `SLAVE_DIR` branch in `Makefile.work`. jessie has no `docker-base-jessie`, so also check the jessie strings in the generic `dockers/docker-base/` (its armhf and arm64 sources and its `FROM ...:jessie` lines) before touching that container.
 
 #### 7.2 Deprecate now, remove later
 
-##### Bullseye base containers — remove in 202705
+##### 7.2.1 Bullseye base containers
 
-`docker-base-bullseye`, `docker-config-engine-bullseye`, `docker-swss-layer-bullseye` (Debian 11). Newer than the bases above, and may still be a live base for some containers, so give it a cycle: move those containers to bookworm/trixie, then remove the bullseye bases in 202705.
+This should be removed in 202705. Bullseye is Debian 11, which is newer than the bases above and may still be a live base for some containers. It deserves a cycle of notice. Move those containers to bookworm or trixie first, and then remove it.
 
-##### FRR split-unified config mode — remove in 202705
+**Remove (202705):** `dockers/docker-base-bullseye/`, `rules/docker-base-bullseye.{mk,dep}`, `dockers/docker-config-engine-bullseye/`, `rules/docker-config-engine-bullseye.{mk,dep}`, `dockers/docker-swss-layer-bullseye/`, `rules/docker-swss-layer-bullseye.{mk,dep}`.
 
-The manual routing mode, where the operator writes `frr.conf` by hand. It has a real problem: the bgp container runs supervisord, not systemd, so FRR can't hot-reload — any `frr.conf` change forces a full FRR restart, which drops BGP sessions. That makes it impractical for production, so it's doubtful anyone serious runs it.
+##### 7.2.2 FRR split-unified config mode
 
-Deprecate now and consolidate on `unified` (bgpcfgd + `config_db.json`). Before removing, confirm bgpcfgd and `config_db.json` cover the FRR features operators actually need.
+This should be removed in 202705. It is the manual routing mode, where the operator writes `frr.conf` by hand. It has a real problem. The bgp container runs supervisord rather than systemd, so FRR cannot hot-reload, and any change to `frr.conf` forces a full FRR restart that drops BGP sessions. That makes it impractical for production, so it is doubtful anyone serious runs it. The plan is to consolidate on `unified`, which uses bgpcfgd and `config_db.json`. Before removing it, confirm that bgpcfgd and `config_db.json` cover the FRR features operators actually need.
 
-##### REST API — remove in 202711
+**Change (202705):** remove the `split-unified` branch in `dockers/docker-fpm-frr/docker_init.sh`.
 
-`docker-sonic-restapi`, off by default. Its own spec calls it the "SONiC REST API for Baremetal Scenarios" — an imperative agent for baremetal VNET/VXLAN/VLAN config over HTTPS, not a general REST interface. gNMI is the go-forward, but two things gNMI doesn't cover: bulk route programming with per-route partial success (HTTP 207), and route expiry (timed route aging).
+##### 7.2.3 REST API
 
-Because of that gap, give it the longest runway. Before removing, confirm no control plane still drives it. The mgmt-framework REST server is a different thing and stays.
+This should be removed in 202711. It is off by default. Its own spec calls it the "SONiC REST API for Baremetal Scenarios." It is an imperative agent for baremetal VNET, VXLAN, and VLAN config over HTTPS, not a general REST interface. gNMI is the intended replacement, but it does not cover two things. The first is bulk route programming with per-route partial success (HTTP 207). The second is route expiry, which is timed route aging. Because of that gap, this candidate gets the longest runway. Before removing it, confirm that no control plane still drives it. The mgmt-framework REST server is a different thing and stays.
+
+**Remove (202711):** `dockers/docker-sonic-restapi/`, `src/sonic-restapi/` and its `.gitmodules` entry, `rules/docker-restapi.{mk,dep}`, and `rules/restapi.{mk,dep}`; the `INCLUDE_RESTAPI` flag in `rules/config`; the `restapi` feature in `files/build_templates/init_cfg.json.j2`.
 
 ### 8. Config and management impact
 
-Removing a feature drops its `FEATURE` table entries, build flags, and any YANG models tied to it (for example `sonic-kubernetes_master.yang`). Users who never enabled these see no CLI change.
+Removing a feature drops its `FEATURE` table entries, its build flags, and any YANG models tied to it, such as `sonic-kubernetes_master.yang`. Users who never enabled these features see no CLI change.
 
-The FRR change removes `separated` and `split` from `docker_routing_config_mode` and makes `unified` the default. Platform removals don't affect other platforms.
+The FRR change removes `separated` and `split` from `docker_routing_config_mode` and makes `unified` the default. The platform removals do not affect other platforms.
 
 ### 9. Warmboot/Fastboot impact
 
-None. Every candidate is off by default, dead, or specific to hardware being removed. Nothing here touches the warmboot/fastboot path on supported platforms.
+There is no warmboot or fastboot impact. Every candidate is off by default, already dead, or specific to hardware that is being removed. None of this touches the warmboot or fastboot path on supported platforms.
 
 ### 10. Testing
 
 - Each supported CI platform still builds after the removals.
-- Removed packages are gone from the SBOM and CVE scan (image diff).
+- The removed packages no longer appear in the SBOM or the CVE scan, confirmed by an image diff.
 - The default FRR path (`unified`) comes up and programs routes.
-- All remaining containers build with nothing pointing at a deleted base.
+- Every remaining container builds with nothing pointing at a deleted base.
 
 ### 11. Additional findings
 
-Real, but out of scope here — removing them needs code porting, which this HLD doesn't cover. Noted so they're tracked.
+These are real, but they are out of scope here, because removing them needs code porting that this HLD does not cover. They are listed so they are tracked.
 
-- **swsssdk-py3.** The old Python Redis SDK. `swsscommon` replaces it, but code still imports `swsssdk` at runtime (`sonic-utilities/scripts/dualtor_neighbor_check.py`, `sonic-py-common`, the vpp container). It can't be deprecated until those are ported to `swsscommon`.
+- **swsssdk-py3.** This is the old Python Redis SDK. `swsscommon` replaces it, but code still imports `swsssdk` at runtime, including `sonic-utilities/scripts/dualtor_neighbor_check.py`, `sonic-py-common`, and the vpp container. It cannot be deprecated until those are ported to `swsscommon`.
