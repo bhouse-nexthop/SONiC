@@ -15,8 +15,7 @@
 - [9. Config and management impact](#9-config-and-management-impact)
 - [10. Warmboot/Fastboot impact](#10-warmbootfastboot-impact)
 - [11. Testing](#11-testing)
-- [12. Open items](#12-open-items)
-- [13. Additional findings](#13-additional-findings)
+- [12. Additional findings](#12-additional-findings)
 
 ### 1. Revision
 
@@ -88,7 +87,7 @@ Rules of thumb:
 | A2 | Standalone P4 platform (`platform/p4`) | Dead reference model since ~2022. In no CI. 12 MB, 923 files, 4 stale submodules. | Keep `rules/p4lang.mk` (bmv2/p4c/PI). DASH SAI and PTF still use it. |
 | A3 | Nephos platform (`platform/nephos`) | Vendor gone (~2019). No real commits in years. No device tree. | Cleanup is mostly the pipeline YAML. |
 | A4 | GoBGP FPM (`docker-fpm-gobgp`, `src/gobgp`, `rules/gobgp.*`) | Not buildable as an image since 2021, yet still compiles a 2017-era Go deb every build. FRR replaced it. | Drop the dead `DOCKER_FPM_GOBGP` / `DOCKER_FPM_QUAGGA` refs in `docker-fpm.*` too. |
-| A5 | Python 2 packages (`swsssdk-py2`, `redis-dump-load-py2`) | Gated off on bullseye/bookworm/trixie. Never built on any current release. | None. The py3 version is a separate case — see [13](#13-additional-findings). |
+| A5 | Python 2 packages (`swsssdk-py2`, `redis-dump-load-py2`) | Gated off on bullseye/bookworm/trixie. Never built on any current release. | None. The py3 version is a separate case — see [12](#12-additional-findings). |
 | A6 | Kubernetes master (`INCLUDE_KUBERNETES_MASTER`) | Runs a full k8s control plane on a switch. All pins are years EOL (k8s 1.22, etcd 3.5.0, coredns 1.8.4, dashboard 2.7.0) plus cloud credential deps. Off, no real CI. | Biggest CVE win. Master only. The worker (`INCLUDE_KUBERNETES`) is a separate feature and **stays** — pre-WG security hardening on it points to a real user. |
 | A7 | `docker-basic_router` | Dead SAI demo container. Wired into no build. Never shipped. | Nothing uses it. |
 | A8 | System Telemetry (`docker-sonic-telemetry`) | Off by default. Redundant — the gnmi container runs the **same binary**. | Keep the `telemetry` binary (gnmi needs it). Remove the container + `INCLUDE_SYSTEM_TELEMETRY` flag. See A8 note. |
@@ -144,14 +143,7 @@ None. Every candidate is off by default, dead, or platform-specific to hardware 
 - **A9:** default FRR path still comes up and programs routes.
 - **A10:** all remaining containers build with nothing pointing at the deleted bases.
 
-### 12. Open items
-
-Held back until an owner confirms. Not proposed here.
-
-- **PDE** (`docker-pde`): Broadcom bring-up tool. Confirm with Broadcom.
-- **clounix platform:** nearly inert but added under a year ago. Confirm intent with the vendor.
-
-### 13. Additional findings
+### 12. Additional findings
 
 Real, but out of scope here. Removing them needs code porting, which this HLD does not cover. Noted so they are tracked.
 
