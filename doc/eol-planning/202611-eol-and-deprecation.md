@@ -14,15 +14,15 @@
     - [7.1.2 DTEL (data-plane telemetry)](#712-dtel-data-plane-telemetry)
     - [7.1.3 Standalone P4 platform](#713-standalone-p4-platform)
     - [7.1.4 Nephos platform](#714-nephos-platform)
-    - [7.1.5 GoBGP FPM container](#715-gobgp-fpm-container)
+    - [7.1.5 GoBGP and Quagga routing stacks](#715-gobgp-and-quagga-routing-stacks)
     - [7.1.6 Python 2 packages](#716-python-2-packages)
     - [7.1.7 Kubernetes master](#717-kubernetes-master)
     - [7.1.8 docker-basic_router](#718-docker-basic_router)
     - [7.1.9 System Telemetry container](#719-system-telemetry-container)
     - [7.1.10 Broken FRR config modes](#7110-broken-frr-config-modes)
-    - [7.1.11 Old Debian build leftovers](#7111-old-debian-build-leftovers)
+    - [7.1.11 End-of-life Debian bases](#7111-end-of-life-debian-bases)
   - [7.2 Deprecate now, remove later](#72-deprecate-now-remove-later)
-    - [7.2.1 Bullseye base containers](#721-bullseye-base-containers)
+    - [7.2.1 Bookworm base containers](#721-bookworm-base-containers)
     - [7.2.2 FRR split-unified config mode](#722-frr-split-unified-config-mode)
     - [7.2.3 REST API](#723-rest-api)
 - [8. Config and management impact](#8-config-and-management-impact)
@@ -35,6 +35,7 @@
 | Rev | Date | Author | Change |
 |-----|------|--------|--------|
 | 0.1 | 2026-07-19 | Brad House (Nexthop) | First draft. Security WG. |
+| 0.2 | 2026-07-24 | Brad House (Nexthop) | Added the Keep verdict. Moved bullseye to immediate removal and deprecated bookworm in its place. Folded Quagga into the GoBGP removal. |
 
 ### 2. Scope
 
@@ -77,10 +78,11 @@ This HLD proposes a standing process to retire those features, along with the fi
 For each release:
 
 1. **Propose.** File or update this HLD with candidates. Each candidate states what it is, what replaces it, the gap in what you lose, and a verdict.
-2. **Pick a verdict.** There are two:
+2. **Pick a verdict.** There are three:
    - **Remove now:** dead, broken, or EOL with no real users. Delete it this cycle.
    - **Deprecate now, remove later:** still has possible users or needs migration work. Name a removal release.
-3. **Review.** The community reviews it, and this HLD is scheduled at the weekly HLD review on Tuesdays. Component owners sign off. A feature is not removed without owner sign-off.
+   - **Keep:** the feature stays. Review turned up real usage, a dependency another feature relies on, or a gap that the proposed replacement does not cover.
+3. **Review.** The community reviews it, and this HLD is scheduled at the weekly HLD review on Tuesdays. Component owners sign off. A feature is not removed without owner sign-off. Review can change a verdict in either direction, and moving a candidate to **Keep** is a normal outcome rather than a failure of the process. When that happens, record what the review turned up and why the feature stays, so that a later cycle does not have to rediscover it.
 4. **Announce.** Deprecations go in the release notes.
 5. **Remove** in the named release.
 
@@ -121,11 +123,19 @@ The Nephos and MediaTek switch silicon vendor left the market around 2019. The p
 
 **Remove:** `platform/nephos/`; the `nephos` job in `.azure-pipelines/azure-pipelines-build.yml`.
 
-##### 7.1.5 GoBGP FPM container
+##### 7.1.5 GoBGP and Quagga routing stacks
 
-SONiC standardized on FRR, which is set by `SONIC_ROUTING_STACK = frr`. The GoBGP image build rules were deleted back in 2021, so it has not been buildable as an image since then. Even so, every build still compiles a 2017 era Go GOBGP package that nothing installs. Removing it loses nothing, because FRR already provides all of this.
+SONiC standardized on FRR, which is set by `SONIC_ROUTING_STACK = frr`. The GoBGP image build rules were deleted back in 2021, so it has not been buildable as an image since then. Even so, every build still compiles a 2017 era Go GOBGP package that nothing installs.
 
-**Remove:** `dockers/docker-fpm-gobgp/`, `src/gobgp/`, `rules/gobgp.mk`, and `rules/gobgp.dep`; the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` references in `rules/docker-fpm.mk` and `rules/docker-fpm.dep`; the gobgp dependency in the non-frr branch of `platform/vs/docker-sonic-vs.mk`.
+Quagga left even earlier, and it should go in the same change. Its container and build rules are already gone, but the CLI branches, the build glue, and the sudoers policy that referenced it were never cleaned up. Removing both loses nothing, because FRR already provides all of this. Once they are gone, `get_routing_stack()` has only one possible answer, so the routing-stack conditionals collapse to a single path.
+
+One Quagga-named file needs care rather than deletion. `clear/bgp_quagga_v4.py` is the live implementation of `clear ip bgp` under FRR, because the `frr` branch of `clear/main.py` imports it and there is no `clear/bgp_frr_v4.py`. Rename that file instead of removing it.
+
+**Remove (GoBGP):** `dockers/docker-fpm-gobgp/`, `src/gobgp/`, `rules/gobgp.mk`, and `rules/gobgp.dep`; the gobgp dependency in the non-frr branch of `platform/vs/docker-sonic-vs.mk`.
+**Remove (Quagga):** in sonic-utilities, `show/bgp_quagga_v4.py`, `show/bgp_quagga_v6.py`, and `clear/bgp_quagga_v6.py`, the `routing_stack == "quagga"` branches in `show/main.py` and `clear/main.py`, the non-frr `else` branches that carry the Quagga `bgp` and `zebra` groups in `debug/main.py` and `undebug/main.py`, the `/etc/quagga/bgpd.conf` branch of `show startupconfiguration bgp`, and the matching cases in `tests/show_test.py`, `tests/clear_test.py`, and `tests/debug_test.py`; the `docker exec bgp cat /etc/quagga/bgpd.conf` entry in `files/image_config/sudoers/sudoers`.
+**Remove (both):** the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` references in `rules/docker-fpm.mk` and `rules/docker-fpm.dep`, which leaves the routing-stack conditional with a single branch.
+**Rename:** `src/sonic-utilities/clear/bgp_quagga_v4.py` to `clear/bgp_frr_v4.py`, and update the import in `clear/main.py`.
+**Fix:** the stale `## Quagga rules` header in `files/image_config/rsyslog/rsyslog.d/00-sonic.conf.j2`, the `docker-fpm.gz` line in `README.md` that still describes the image as Quagga, and the "For quagga build" comments in `sonic-slave-bookworm/Dockerfile.j2` and `sonic-slave-trixie/Dockerfile.j2`. The packages under those comments, such as `libreadline-dev`, `libpam-dev`, and the texlive set, are FRR build dependencies now, so confirm what FRR needs before removing any of them.
 
 ##### 7.1.6 Python 2 packages
 
@@ -163,21 +173,25 @@ The supported path is `unified`, where the config comes from bgpcfgd and `config
 
 **Change:** remove the `separated` and `split` branches in `dockers/docker-fpm-frr/docker_init.sh` and the per-daemon templates under `dockers/docker-fpm-frr/frr/{bgpd,zebra,staticd,sharpd}/`; flip the default in `src/sonic-config-engine/minigraph.py` from `separated` to `unified`.
 
-##### 7.1.11 Old Debian build leftovers
+##### 7.1.11 End-of-life Debian bases
 
-Debian 8 (jessie), Debian 9 (stretch), and Debian 10 (buster) are all long past end of life. The risk is that someone builds a new container on a base that is more than six years old. Before deleting any base, confirm that nothing still builds a container on it. Bullseye is Debian 11, which is newer, and it is handled under Deprecate.
+Debian 8 (jessie), Debian 9 (stretch), Debian 10 (buster), and Debian 11 (bullseye) are all out of support. Bullseye leaves Debian LTS in August 2026, which is before 202611 ships, so it belongs with the rest rather than in a later cycle. The risk in every case is the same, which is that someone builds a new container on a base that no longer gets security updates.
+
+jessie, stretch, and buster are pure leftovers, because nothing builds on them. Bullseye is different, because containers still build on it today, so those have to move first. Before deleting any base, confirm that nothing still builds a container on it. Debian 12 (bookworm) is still a live base and is handled under Deprecate.
 
 **Remove (stretch):** `dockers/docker-base-stretch/`, `rules/docker-base-stretch.{mk,dep}`, `dockers/docker-config-engine-stretch/`, `rules/docker-config-engine-stretch.{mk,dep}`.
 **Remove (buster):** `dockers/docker-base-buster/`, `rules/docker-base-buster.{mk,dep}`, `dockers/docker-config-engine-buster/`, `rules/docker-config-engine-buster.{mk,dep}`, `dockers/docker-swss-layer-buster/`, `rules/docker-swss-layer-buster.{mk,dep}`.
 **Remove (jessie):** `sonic-slave-jessie/`, the `jessie` target in `Makefile`, and the jessie `SLAVE_DIR` branch in `Makefile.work`. jessie has no `docker-base-jessie`, so also check the jessie strings in the generic `dockers/docker-base/` (its armhf and arm64 sources and its `FROM ...:jessie` lines) before touching that container.
+**Move first (bullseye):** seven containers still build on a bullseye base. Two of them, `docker-syncd-bfn` and `docker-saiserver-bfn`, go away with Barefoot in 7.1.1. The other five have to move to bookworm or trixie before bullseye can go, and they are `docker-syncd-centec` and `docker-saiserver-centec` under both `platform/centec/` and `platform/centec-arm64/`, plus `dockers/docker-sonic-sdk/`. The centec containers reach bullseye through `platform/template/docker-syncd-bullseye.mk`, so pointing their `docker-syncd-centec.mk` at the bookworm or trixie template covers four of the five.
+**Remove (bullseye):** `dockers/docker-base-bullseye/`, `rules/docker-base-bullseye.{mk,dep}`, `dockers/docker-config-engine-bullseye/`, `rules/docker-config-engine-bullseye.{mk,dep}`, `dockers/docker-swss-layer-bullseye/`, `rules/docker-swss-layer-bullseye.{mk,dep}`, `platform/template/docker-syncd-bullseye.mk`, and `sonic-slave-bullseye/`; the `bullseye` target and the `NOBULLSEYE` and `BUILD_BULLSEYE` handling in `Makefile`, the bullseye `SLAVE_DIR` branch in `Makefile.work`, the `sonic-slave-bullseye` entry in `Makefile.cache`, and in `slave.mk` the `BULLSEYE_DEBS_PATH` and `BULLSEYE_FILES_PATH` variables, the `bullseye` target, and the `BLDENV` tests that name it; the `BLDENV == bullseye` conditionals in `rules/grpc.mk`, `rules/protobuf.mk`, `rules/sonic-dash-api.mk`, and `rules/sonic-fips.mk`.
 
 #### 7.2 Deprecate now, remove later
 
-##### 7.2.1 Bullseye base containers
+##### 7.2.1 Bookworm base containers
 
-This should be removed in 202705. Bullseye is Debian 11, which is newer than the bases above and may still be a live base for some containers. It deserves a cycle of notice. Move those containers to bookworm or trixie first, and then remove it.
+This should be removed in 202705. Bookworm is Debian 12. Its regular security support ends in 2026, which leaves LTS only, and trixie is the current base. It is still a live base, so it deserves a cycle of notice rather than immediate removal. Three syncd containers build on it, which are `docker-syncd-pensando`, `docker-syncd-vs` under `platform/alpinevs/`, and `docker-syncd-vs` under `platform/nokia-vs/`, and the last two reach it through `platform/template/docker-syncd-bookworm.mk`. Move those to trixie first, and then remove the base.
 
-**Remove (202705):** `dockers/docker-base-bullseye/`, `rules/docker-base-bullseye.{mk,dep}`, `dockers/docker-config-engine-bullseye/`, `rules/docker-config-engine-bullseye.{mk,dep}`, `dockers/docker-swss-layer-bullseye/`, `rules/docker-swss-layer-bullseye.{mk,dep}`.
+**Remove (202705):** `dockers/docker-base-bookworm/`, `rules/docker-base-bookworm.{mk,dep}`, `dockers/docker-config-engine-bookworm/`, `rules/docker-config-engine-bookworm.{mk,dep}`, `dockers/docker-swss-layer-bookworm/`, `rules/docker-swss-layer-bookworm.{mk,dep}`, `platform/template/docker-syncd-bookworm.mk`, and `sonic-slave-bookworm/`; the `bookworm` target and the `NOBOOKWORM` and `BUILD_BOOKWORM` handling in `Makefile`, and the bookworm `SLAVE_DIR` branch in `Makefile.work`.
 
 ##### 7.2.2 FRR split-unified config mode
 
@@ -197,6 +211,8 @@ Removing a feature drops its `FEATURE` table entries, its build flags, and any Y
 
 The FRR change removes `separated` and `split` from `docker_routing_config_mode` and makes `unified` the default. The platform removals do not affect other platforms.
 
+The Quagga cleanup does not change any command an operator runs, because the FRR branch of every affected command already provides the same CLI. `clear ip bgp` keeps working through the renamed `clear/bgp_frr_v4.py`. The one visible difference is `show startupconfiguration bgp`, which loses its `/etc/quagga/bgpd.conf` branch and reads only `/etc/frr/bgpd.conf`.
+
 ### 9. Warmboot/Fastboot impact
 
 There is no warmboot or fastboot impact. Every candidate is off by default, already dead, or specific to hardware that is being removed. None of this touches the warmboot or fastboot path on supported platforms.
@@ -206,7 +222,8 @@ There is no warmboot or fastboot impact. Every candidate is off by default, alre
 - Each supported CI platform still builds after the removals.
 - The removed packages no longer appear in the SBOM or the CVE scan, confirmed by an image diff.
 - The default FRR path (`unified`) comes up and programs routes.
-- Every remaining container builds with nothing pointing at a deleted base.
+- Every remaining container builds with nothing pointing at a deleted base, and the centec and sonic-sdk containers build on their new base.
+- `show ip bgp` and `clear ip bgp` still work after the Quagga cleanup and the `clear/bgp_frr_v4.py` rename.
 
 ### 11. Additional findings
 
