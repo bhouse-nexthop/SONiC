@@ -103,6 +103,7 @@ A few rules of thumb guide the calls above:
 - A forced bump, such as a libyang, base image, submodule pointer, or mass format change, does not count as maintenance.
 - If a replacement has a gap, we name it so users can speak up.
 - Silence is not consent on its own. It counts only after the notifications above have gone out twice and the second round has had time to draw a response.
+- A removal that touches configuration is not finished until `db_migrator.py` cleans up what it leaves behind in CONFIG_DB. See section 8.
 
 ### 7. Candidates for 202611
 
@@ -226,6 +227,16 @@ This should be removed in 202711. It is off by default. Its own spec calls it th
 
 Removing a feature drops its `FEATURE` table entries, its build flags, and any YANG models tied to it, such as `sonic-kubernetes_master.yang`. Users who never enabled these features see no CLI change.
 
+Removing the code is only half of it, because a device that upgrades keeps whatever it already had in CONFIG_DB. Every removal that touches configuration therefore has to update `sonic-utilities/scripts/db_migrator.py`, and that update is part of the removal rather than a follow-up. Without it, an upgraded device carries dead `FEATURE` rows and orphaned tables forever, a table that outlives its YANG model can fail config validation, and a setting whose supported values have narrowed can leave the device pointing at a value that no longer exists.
+
+The shape of the change is the same each time. Add a new `version_<branch>_<build>` method chained onto the current tail of the version chain, bump `CURRENT_VERSION` to it, which is `version_202605_01` today, and drop the state that is going away with `delete_table` or with entry deletion. What this batch needs:
+
+- `DEVICE_METADATA|localhost|docker_routing_config_mode`. A device holding `separated` or `split` has to be migrated to `unified`, because 7.1.10 deletes the code behind both. This is the case that matters most, since skipping it leaves a device configured for a routing mode that no longer exists rather than merely carrying dead config.
+- The `KUBERNETES_MASTER` table, which goes with 7.1.7, along with its YANG model.
+- The DTEL tables, which go with 7.1.2.
+- `FEATURE|telemetry`, which goes with 7.1.9. `FEATURE|gnmi` stays, and the two must not be confused, because the surviving container is the gnmi one.
+- `FEATURE|restapi`, when the REST API is removed in 202711 under 7.2.3, which lands in that release's migrator rather than this one.
+
 The FRR change removes `separated` and `split` from `docker_routing_config_mode` and makes `unified` the default. The platform removals do not affect other platforms.
 
 Collapsing the routing stack to FRR alone does not change any command an operator runs, because the FRR branch of every affected command already provides the same CLI. `clear ip bgp` keeps working through the renamed `clear/bgp_frr_v4.py`. The one visible difference is `show startupconfiguration bgp`, which loses its `/etc/quagga/bgpd.conf` branch and reads only `/etc/frr/bgpd.conf`.
@@ -239,6 +250,8 @@ There is no warmboot or fastboot impact. Every candidate is off by default, alre
 - Each supported CI platform still builds after the removals.
 - The removed packages no longer appear in the SBOM or the CVE scan, confirmed by an image diff.
 - The default FRR path (`unified`) comes up and programs routes.
+- A `config_db.json` from the previous release migrates cleanly, with no leftover tables for removed features and no config validation errors against the reduced YANG model set.
+- A device configured for `separated` or `split` comes up in `unified` after upgrade, rather than pointing at a mode whose code is gone.
 - Every remaining container builds with nothing pointing at a deleted base, and the centec and sonic-sdk containers build on their new base.
 - `show ip bgp` and `clear ip bgp` still work after the routing-stack collapse and the `clear/bgp_frr_v4.py` rename.
 
