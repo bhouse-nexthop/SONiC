@@ -36,6 +36,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-07-19 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-07-24 | Brad House (Nexthop) | Added the Keep verdict. Moved bullseye to immediate removal and deprecated bookworm in its place. Folded Quagga into the GoBGP removal. |
+| 0.3 | 2026-07-24 | Brad House (Nexthop) | Filled in the notification steps of the process, which are the mailing list, the working groups, the TSC for platform removals, and a second round before the branch date. |
 
 ### 2. Scope
 
@@ -59,6 +60,8 @@ Releases ship twice a year, in November (`YYYY11`) and in May (`YYYY05`). The cy
 | TAM | Telemetry and Monitoring (added in 202605). |
 | EOL | End of life. |
 | CI | The community build/test gate. |
+| TSC | Technical Steering Committee. |
+| WG | Working group. |
 
 ### 4. Overview
 
@@ -75,6 +78,8 @@ This HLD proposes a standing process to retire those features, along with the fi
 
 ### 6. Process
 
+This section is the boilerplate for the deprecation cycle itself. It is meant to carry forward unchanged into the plan for each following release, so that only the candidate list in section 7 changes from one cycle to the next.
+
 For each release:
 
 1. **Propose.** File or update this HLD with candidates. Each candidate states what it is, what replaces it, the gap in what you lose, and a verdict.
@@ -83,18 +88,27 @@ For each release:
    - **Deprecate now, remove later:** still has possible users or needs migration work. Name a removal release.
    - **Keep:** the feature stays. Review turned up real usage, a dependency another feature relies on, or a gap that the proposed replacement does not cover.
 3. **Review.** The community reviews it, and this HLD is scheduled at the weekly HLD review on Tuesdays. Component owners sign off. A feature is not removed without owner sign-off. Review can change a verdict in either direction, and moving a candidate to **Keep** is a normal outcome rather than a failure of the process. When that happens, record what the review turned up and why the feature stays, so that a later cycle does not have to rediscover it.
-4. **Announce.** Deprecations go in the release notes.
-5. **Remove** in the named release.
+4. **Take platform removals to the TSC.** Platforms are special, because a platform is somebody's hardware and the people who own it are not always the people who read HLDs. Every platform removal is proposed to the TSC in addition to the steps above, and the TSC can reject it. Owner sign-off does not substitute for that, and the TSC decision is what settles a platform removal.
+5. **Notify the mailing list.** After HLD review, send the proposal to `sonic-dev@lists.sonicfoundation.dev`. Not everyone with a stake attends HLD review, and the mailing list is how the rest of them find out while there is still time to object. Include the full candidate list, the verdict for each one, the named removal release, and a date by which responses are wanted.
+6. **Notify the interested working groups.** Send each candidate to the working group that owns the area it touches, where one exists. A working group knows its own users, so it is the fastest way to turn "we think nobody runs this" into a real answer. Reach the routing group for routing stack and FRR changes, the telemetry group for telemetry changes, the management group for management interface changes, and the platform and hardware groups for platform removals. Sending the same item to more than one group is fine and is better than missing one.
+7. **Notify again before the branch date.** Every notification above goes out a second time, no later than two months before the release branch is cut, and revised for whatever the first round turned up. Anyone who has since changed a verdict says so in that second round. This gives a user who missed the first notice a last chance to speak up while there is still time to revert a removal.
+8. **Announce.** Deprecations go in the release notes.
+9. **Remove** in the named release.
+
+The goal of steps 4 through 7 is to over-communicate. It costs little to send the same proposal to one more list or one more group, and it costs a great deal to remove something that a user turns out to depend on. Nobody should learn that a feature is gone from the release notes, or from their build breaking.
 
 A few rules of thumb guide the calls above:
 
 - "Not built by default" and "not in CI" are hints, not proof. We check real use before calling anything dead.
 - A forced bump, such as a libyang, base image, submodule pointer, or mass format change, does not count as maintenance.
 - If a replacement has a gap, we name it so users can speak up.
+- Silence is not consent on its own. It counts only after the notifications above have gone out twice and the second round has had time to draw a response.
 
 ### 7. Candidates for 202611
 
 Each candidate below stands on its own. It states what the feature is, why it should go, the paths to remove, and anything to watch out for.
+
+Three of these are platform removals, which are 7.1.1 Barefoot, 7.1.3 standalone P4, and 7.1.4 Nephos. Those go to the TSC under step 4 of the process, separately from the rest of this list.
 
 #### 7.1 Remove now
 
