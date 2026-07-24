@@ -125,17 +125,20 @@ The Nephos and MediaTek switch silicon vendor left the market around 2019. The p
 
 ##### 7.1.5 GoBGP and Quagga routing stacks
 
-SONiC standardized on FRR, which is set by `SONIC_ROUTING_STACK = frr`. The GoBGP image build rules were deleted back in 2021, so it has not been buildable as an image since then. Even so, every build still compiles a 2017 era Go GOBGP package that nothing installs.
+FRR is the only routing stack SONiC supports. `rules/config` already documents `frr` as the sole supported value of `SONIC_ROUTING_STACK`. Even so, both the build and the CLI still carry the machinery to elect GoBGP or Quagga instead, and that selectable-stack machinery is what this candidate removes.
 
-Quagga left even earlier, and it should go in the same change. Its container and build rules are already gone, but the CLI branches, the build glue, and the sudoers policy that referenced it were never cleaned up. Removing both loses nothing, because FRR already provides all of this. Once they are gone, `get_routing_stack()` has only one possible answer, so the routing-stack conditionals collapse to a single path.
+GoBGP had its image build rules deleted back in 2021, so it has not been buildable as an image since then. Even so, every build still compiles a 2017 era Go GOBGP package that nothing installs. Quagga left even earlier. Its container and build rules are long gone, but the branches that would select it were never cleaned up, so the build glue, the CLI, and the sudoers policy still carry a Quagga path that cannot be reached. Removing both loses nothing, because FRR provides all of it. Once they are gone, every routing-stack conditional collapses to a single path, and `get_routing_stack()` has only one possible answer, so the runtime detection that shells out to `docker ps` can go with it.
 
-One Quagga-named file needs care rather than deletion. `clear/bgp_quagga_v4.py` is the live implementation of `clear ip bgp` under FRR, because the `frr` branch of `clear/main.py` imports it and there is no `clear/bgp_frr_v4.py`. Rename that file instead of removing it.
+The target here is stack selection rather than the word Quagga. FRR is itself a fork of Quagga, so Quagga-derived names legitimately survive in FRR-sourced code, including the whole of `src/sonic-frr/`, its `_QUAGGA_*` header guards, and the `fpm.h` that fpmsyncd carries. Those are upstream names and they stay.
 
-**Remove (GoBGP):** `dockers/docker-fpm-gobgp/`, `src/gobgp/`, `rules/gobgp.mk`, and `rules/gobgp.dep`; the gobgp dependency in the non-frr branch of `platform/vs/docker-sonic-vs.mk`.
-**Remove (Quagga):** in sonic-utilities, `show/bgp_quagga_v4.py`, `show/bgp_quagga_v6.py`, and `clear/bgp_quagga_v6.py`, the `routing_stack == "quagga"` branches in `show/main.py` and `clear/main.py`, the non-frr `else` branches that carry the Quagga `bgp` and `zebra` groups in `debug/main.py` and `undebug/main.py`, the `/etc/quagga/bgpd.conf` branch of `show startupconfiguration bgp`, and the matching cases in `tests/show_test.py`, `tests/clear_test.py`, and `tests/debug_test.py`; the `docker exec bgp cat /etc/quagga/bgpd.conf` entry in `files/image_config/sudoers/sudoers`.
-**Remove (both):** the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` references in `rules/docker-fpm.mk` and `rules/docker-fpm.dep`, which leaves the routing-stack conditional with a single branch.
+Where a Quagga-named file turns out to be the live FRR implementation, rename it rather than delete it. `clear/bgp_quagga_v4.py` is the clear case, because the `frr` branch of `clear/main.py` imports it and there is no `clear/bgp_frr_v4.py`, which makes it the working implementation of `clear ip bgp` today.
+
+**Remove (GoBGP):** `dockers/docker-fpm-gobgp/`, `src/gobgp/`, `rules/gobgp.mk`, and `rules/gobgp.dep`.
+**Remove (stack selection in the build):** `rules/docker-fpm.mk` and `rules/docker-fpm.dep`, which exist only to elect a stack, so `DOCKER_FPM_FRR` can be referenced directly and the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` names go with them; the `else` branch that adds `$(GOBGP)` in `platform/vs/docker-sonic-vs.mk`; the `SONIC_ROUTING_STACK` conditionals in `slave.mk` and `files/build_templates/sonic_debian_extension.j2`, whose FRR blocks become unconditional; the commented-out `ROUTING_STACK` selection in `platform/p4/docker-sonic-p4.mk`, which goes with 7.1.3 in any case. Keep `SONIC_ROUTING_STACK = frr` in `rules/config` as a single-value knob, because downstream `rules/config.user` files may still set it.
+**Remove (stack selection in the CLI):** in sonic-utilities, the `routing_stack == "quagga"` branches of `show/main.py` and `clear/main.py` along with `show/bgp_quagga_v4.py`, `show/bgp_quagga_v6.py`, and `clear/bgp_quagga_v6.py`; the non-frr `else` branches that carry the Quagga `bgp` and `zebra` groups in `debug/main.py` and `undebug/main.py`; the `/etc/quagga/bgpd.conf` branch of `show startupconfiguration bgp` and the matching `docker exec bgp cat /etc/quagga/bgpd.conf` entry in `files/image_config/sudoers/sudoers`; the cases that exercise the removed branches in `tests/show_test.py`, `tests/clear_test.py`, and `tests/debug_test.py`.
 **Rename:** `src/sonic-utilities/clear/bgp_quagga_v4.py` to `clear/bgp_frr_v4.py`, and update the import in `clear/main.py`.
-**Fix:** the stale `## Quagga rules` header in `files/image_config/rsyslog/rsyslog.d/00-sonic.conf.j2`, the `docker-fpm.gz` line in `README.md` that still describes the image as Quagga, and the "For quagga build" comments in `sonic-slave-bookworm/Dockerfile.j2` and `sonic-slave-trixie/Dockerfile.j2`. The packages under those comments, such as `libreadline-dev`, `libpam-dev`, and the texlive set, are FRR build dependencies now, so confirm what FRR needs before removing any of them.
+
+Comments that only mention Quagga in passing, such as the `docker-fpm.gz` line in `README.md`, the `## Quagga rules` header in `files/image_config/rsyslog/rsyslog.d/00-sonic.conf.j2`, and the "For quagga build" comments in the sonic-slave Dockerfiles, are worth correcting when the code around them is touched, but they are not the point of this candidate. The packages under that build comment, such as `libreadline-dev`, `libpam-dev`, and the texlive set, are FRR build dependencies now, so leave them alone.
 
 ##### 7.1.6 Python 2 packages
 
@@ -211,7 +214,7 @@ Removing a feature drops its `FEATURE` table entries, its build flags, and any Y
 
 The FRR change removes `separated` and `split` from `docker_routing_config_mode` and makes `unified` the default. The platform removals do not affect other platforms.
 
-The Quagga cleanup does not change any command an operator runs, because the FRR branch of every affected command already provides the same CLI. `clear ip bgp` keeps working through the renamed `clear/bgp_frr_v4.py`. The one visible difference is `show startupconfiguration bgp`, which loses its `/etc/quagga/bgpd.conf` branch and reads only `/etc/frr/bgpd.conf`.
+Collapsing the routing stack to FRR alone does not change any command an operator runs, because the FRR branch of every affected command already provides the same CLI. `clear ip bgp` keeps working through the renamed `clear/bgp_frr_v4.py`. The one visible difference is `show startupconfiguration bgp`, which loses its `/etc/quagga/bgpd.conf` branch and reads only `/etc/frr/bgpd.conf`.
 
 ### 9. Warmboot/Fastboot impact
 
@@ -223,7 +226,7 @@ There is no warmboot or fastboot impact. Every candidate is off by default, alre
 - The removed packages no longer appear in the SBOM or the CVE scan, confirmed by an image diff.
 - The default FRR path (`unified`) comes up and programs routes.
 - Every remaining container builds with nothing pointing at a deleted base, and the centec and sonic-sdk containers build on their new base.
-- `show ip bgp` and `clear ip bgp` still work after the Quagga cleanup and the `clear/bgp_frr_v4.py` rename.
+- `show ip bgp` and `clear ip bgp` still work after the routing-stack collapse and the `clear/bgp_frr_v4.py` rename.
 
 ### 11. Additional findings
 
